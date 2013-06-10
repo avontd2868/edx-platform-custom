@@ -3,8 +3,8 @@ from django.conf.urls import patterns, include, url
 from . import one_time_startup
 
 # Uncomment the next two lines to enable the admin:
-# from django.contrib import admin
-# admin.autodiscover()
+from django.contrib import admin
+admin.autodiscover()
 
 urlpatterns = ('',  # nopep8
     url(r'^$', 'contentstore.views.howitworks', name='homepage'),
