@@ -20,7 +20,7 @@ from lxml import etree
 
 from xmodule.video_module import VideoDescriptor, VideoModule
 from xmodule.modulestore import Location
-from xmodule.tests import test_system
+from xmodule.tests import get_test_system
 from xmodule.tests.test_logic import LogicTest
 
 
@@ -47,13 +47,13 @@ class VideoFactory(object):
         """Method return Video Xmodule instance."""
         location = Location(["i4x", "edX", "video", "default",
                              "SampleProblem1"])
-        model_data = {'data': VideoFactory.sample_problem_xml_youtube}
+        model_data = {'data': VideoFactory.sample_problem_xml_youtube, 'location': location}
 
         descriptor = Mock(weight="1")
 
-        system = test_system()
+        system = get_test_system()
         system.render_template = lambda template, context: context
-        module = VideoModule(system, location, descriptor, model_data)
+        module = VideoModule(system, descriptor, model_data)
 
         return module
 

@@ -6,6 +6,8 @@ if USE_CUSTOM_THEME
     THEME_SASS = File.join(THEME_ROOT, "static", "sass")
 end
 
+MINIMAL_DARWIN_NOFILE_LIMIT = 8000
+
 def xmodule_cmd(watch=false, debug=false)
     xmodule_cmd = 'xmodule_assets common/static/xmodule'
     if watch
@@ -21,24 +23,14 @@ def xmodule_cmd(watch=false, debug=false)
 end
 
 def coffee_cmd(watch=false, debug=false)
-    if watch
-        # On OSx, coffee fails with EMFILE when
-        # trying to watch all of our coffee files at the same
-        # time.
-        #
-        # Ref: https://github.com/joyent/node/issues/2479
-        #
-        # So, instead, we use watchmedo, which works around the problem
-        "watchmedo shell-command " +
-                  "--command 'node_modules/.bin/coffee -c ${watch_src_path}' " +
-                  "--recursive " +
-                  "--patterns '*.coffee' " +
-                  "--ignore-directories " +
-                  "--wait " +
-                  "."
-    else
-        'node_modules/.bin/coffee --compile .'
+    if watch && Launchy::Application.new.host_os_family.darwin?
+        available_files = Process::getrlimit(:NOFILE)[0]
+        if available_files < MINIMAL_DARWIN_NOFILE_LIMIT
+            Process.setrlimit(:NOFILE, MINIMAL_DARWIN_NOFILE_LIMIT)
+
+        end
     end
+    "node_modules/.bin/coffee --compile #{watch ? '--watch' : ''} ."
 end
 
 def sass_cmd(watch=false, debug=false)
@@ -52,11 +44,12 @@ def sass_cmd(watch=false, debug=false)
     "sass #{debug ? '--debug-info' : '--style compressed'} " +
           "--load-path #{sass_load_paths.join(' ')} " +
           "--require ./common/static/sass/bourbon/lib/bourbon.rb " +
-          "#{watch ? '--watch' : '--update'} #{sass_watch_paths.join(' ')}"
+          "#{watch ? '--watch' : '--update'} -E utf-8 #{sass_watch_paths.join(' ')}"
 end
 
+# This task takes arguments purely to pass them via dependencies to the preprocess task
 desc "Compile all assets"
-multitask :assets => 'assets:all'
+task :assets, [:system, :env] => 'assets:all'
 
 namespace :assets do
 
@@ -78,10 +71,11 @@ namespace :assets do
     end
 
     {:xmodule => [:install_python_prereqs],
-     :coffee => [:install_node_prereqs],
+     :coffee => [:install_node_prereqs, :'assets:coffee:clobber'],
      :sass => [:install_ruby_prereqs, :preprocess]}.each_pair do |asset_type, prereq_tasks|
+        # This task takes arguments purely to pass them via dependencies to the preprocess task
         desc "Compile all #{asset_type} assets"
-        task asset_type => prereq_tasks do
+        task asset_type, [:system, :env] => prereq_tasks do |t, args|
             cmd = send(asset_type.to_s + "_cmd", watch=false, debug=false)
             if cmd.kind_of?(Array)
                 cmd.each {|c| sh(c)}
@@ -90,7 +84,8 @@ namespace :assets do
             end
         end
 
-        multitask :all => asset_type
+        # This task takes arguments purely to pass them via dependencies to the preprocess task
+        multitask :all, [:system, :env] => asset_type
         multitask :debug => "assets:#{asset_type}:debug"
         multitask :_watch => "assets:#{asset_type}:_watch"
 
@@ -111,9 +106,9 @@ namespace :assets do
             task :_watch => (prereq_tasks + ["assets:#{asset_type}:debug"]) do
                 cmd = send(asset_type.to_s + "_cmd", watch=true, debug=true)
                 if cmd.kind_of?(Array)
-                    cmd.each {|c| background_process(c)}
+                    cmd.each {|c| singleton_process(c)}
                 else
-                    background_process(cmd)
+                    singleton_process(cmd)
                 end
             end
         end
@@ -127,6 +122,11 @@ namespace :assets do
     multitask :coffee => 'assets:xmodule'
     namespace :coffee do
         multitask :debug => 'assets:xmodule:debug'
+
+        desc "Remove compiled coffeescript files"
+        task :clobber do
+            FileList['*/static/coffee/**/*.js'].each {|f| File.delete(f)}
+        end
     end
 
     namespace :xmodule do
