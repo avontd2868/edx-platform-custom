@@ -21,7 +21,7 @@ Longer TODO:
 
 # We intentionally define lots of variables that aren't used, and
 # want to import all variables from base settings files
-# pylint: disable=W0401, W0614
+# pylint: disable=W0401, W0611, W0614
 
 import sys
 import lms.envs.common
@@ -54,7 +54,11 @@ MITX_FEATURES = {
     'ENABLE_SERVICE_STATUS': False,
 
     # Don't autoplay videos for course authors
-    'AUTOPLAY_VIDEOS': False
+    'AUTOPLAY_VIDEOS': False,
+
+    # If set to True, new Studio users won't be able to author courses unless
+    # edX has explicitly added them to the course creator group.
+    'ENABLE_CREATOR_GROUP': False
 }
 ENABLE_JASMINE = False
 
